@@ -4,7 +4,7 @@ const { Op } = require("sequelize");
 class MoodController {
   static async getAllMoods(req, res, next) {
     try {
-      const moods = await MoodLog.findAll({ where: { UserId: req.user.id } });
+      const moods = await MoodLog.findOne({ where: { UserId: req.user.id } });
       res.status(200).json({ moods });
     } catch (error) {
       next(error);
@@ -16,13 +16,9 @@ class MoodController {
       const userId = req.user.id;
       const { mood } = req.body;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       const existingMood = await MoodLog.findOne({
         where: {
           UserId: userId,
-          createdAt: { [Op.gte]: today },
         },
       });
 

@@ -31,14 +31,6 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "MoodLog",
-      timestamps: true,
-      indexes: [
-        {
-          unique: true,
-          fields: ["UserId", "createdAt"],
-          name: "unique_user_per_day",
-        },
-      ],
     }
   );
   return MoodLog;

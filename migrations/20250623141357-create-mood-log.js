@@ -60,10 +60,6 @@ module.exports = {
         type: Sequelize.DATE,
       },
     });
-    await queryInterface.addIndex("MoodLogs", ["UserId", "createdAt"], {
-      unique: true,
-      name: "unique_user_per_day",
-    });
   },
   async down(queryInterface, Sequelize) {
     await queryInterface.dropTable("MoodLogs");

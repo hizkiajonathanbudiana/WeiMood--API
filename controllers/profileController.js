@@ -57,6 +57,7 @@ class ProfileController {
         activityLevel,
         status,
         field,
+        personality,
       } = req.body;
       const userId = req.user.id;
 
@@ -68,6 +69,7 @@ class ProfileController {
           country,
           city,
           hobbies,
+          personality,
           interests,
           favMusic,
           favMusicGenre,
@@ -95,10 +97,11 @@ class ProfileController {
         hobbies,
         interests,
         favMusic,
-        favMusicGenre,
+        favGenreMusic,
         activityLevel,
         status,
         field,
+        personality,
       } = req.body;
       const userId = req.user.id;
 
@@ -112,10 +115,11 @@ class ProfileController {
         hobbies,
         interests,
         favMusic,
-        favMusicGenre,
+        favGenreMusic,
         activityLevel,
         status,
         field,
+        personality,
       });
 
       return res.status(201).json({ message: "Profile created successfully" });

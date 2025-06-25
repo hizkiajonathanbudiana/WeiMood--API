@@ -15,6 +15,7 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.SaveChat, { foreignKey: "UserId" });
     }
   }
+
   User.init(
     {
       email: {

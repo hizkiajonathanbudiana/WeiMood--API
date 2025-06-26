@@ -13,13 +13,9 @@ const {
 
 const axios = require("axios");
 
-// … setelah import middleware, controllers, dll.
-
-// Proxy ke Quotable (boleh HTTP karena ini server-to-server)
 router.get("/quotes", async (req, res, next) => {
   try {
     const { data } = await axios.get("http://api.quotable.io/quotes/random");
-    // Jika API mengembalikan array, sesuaikan indexing:
     const quote = Array.isArray(data) ? data[0] : data;
     res.json({
       content: quote.content,

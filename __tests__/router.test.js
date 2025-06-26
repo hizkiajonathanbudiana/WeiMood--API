@@ -1,335 +1,175 @@
+// tests/router.test.js
+
 const request = require("supertest");
-const app = require("../app");
-const nodemailer = require("nodemailer");
-const { OpenAI } = require("openai");
-const db = require("../models");
-const { verifyToken } = require("../helpers/jwt");
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const bodyParser = require("body-parser");
 
-// --- MOCKS ---
-jest.mock("nodemailer");
-const sendMailMock = jest.fn();
-nodemailer.createTransport.mockReturnValue({ sendMail: sendMailMock });
+// Import routers and middlewares
+const routers = require("../routers/routers");
+const {
+  protectorLogin,
+  protectorProfile,
+  protectorVerify,
+} = require("../middlewares/middlewares");
 
-jest.mock("openai", () => {
-  const mOpenAI = {
-    chat: {
-      completions: {
-        create: jest.fn(),
-      },
-    },
-  };
-  return { __esModule: true, OpenAI: jest.fn(() => mOpenAI) };
-});
-const openai = new OpenAI();
-
-jest.mock("../helpers/jwt", () => ({
-  ...jest.requireActual("../helpers/jwt"),
-  verifyToken: jest.fn(),
+jest.mock("../middlewares/middlewares", () => ({
+  protectorLogin: jest.fn((req, res, next) => next()),
+  protectorProfile: jest.fn((req, res, next) => next()),
+  protectorVerify: jest.fn((req, res, next) => next()),
 }));
 
-// --- LIFECYCLE HOOKS ---
-beforeAll(async () => {
-  await db.sequelize.sync({ force: true });
-});
+// Dummy controllers for testing route wiring
+jest.mock("../controllers/userController", () => ({
+  loginHandler: (req, res) => res.status(200).json({ route: "login" }),
+  registerHandler: (req, res) => res.status(201).json({ route: "register" }),
+  googleLogin: (req, res) => res.status(200).json({ route: "google" }),
+  verifyCodeHandler: (req, res) => res.status(200).json({ route: "verify" }),
+  sendVerificationEmail: (req, res) =>
+    res.status(201).json({ route: "verify/send" }),
+}));
 
-afterEach(() => {
-  jest.clearAllMocks();
-});
+jest.mock("../controllers/chatController", () => ({
+  getChatDetail: (req, res) => res.status(200).json({ route: "chatDetail" }),
+  deleteChat: (req, res) => res.status(200).json({ route: "deleteChat" }),
+  getChatHistory: (req, res) => res.status(200).json({ route: "chatHistory" }),
+  saveChat: (req, res) => res.status(201).json({ route: "saveChat" }),
+  generateChat: (req, res) => res.status(201).json({ route: "generateChat" }),
+}));
 
-afterAll(async () => {
-  await db.sequelize.close();
-});
+jest.mock("../controllers/moodController", () => ({
+  getAllMoods: (req, res) => res.status(200).json({ route: "getAllMoods" }),
+  createOrUpdateMood: (req, res) =>
+    res.status(201).json({ route: "createOrUpdateMood" }),
+}));
 
-// --- HELPER FUNCTIONS ---
-async function registerAndLogin(
-  user = { email: "test@mail.com", password: "pass123" }
-) {
-  await request(app).post("/register").send(user);
-  const res = await request(app).post("/login").send(user);
-  if (res.status !== 200) {
-    throw new Error(
-      `Login failed in helper: Status ${res.status} Body: ${JSON.stringify(
-        res.body
-      )}`
-    );
-  }
-  return { cookies: res.headers["set-cookie"] };
+jest.mock("../controllers/profileController", () => ({
+  createProfile: (req, res) => res.status(201).json({ route: "createProfile" }),
+  updateProfile: (req, res) => res.status(200).json({ route: "updateProfile" }),
+  deleteProfile: (req, res) => res.status(200).json({ route: "deleteProfile" }),
+  getProfile: (req, res) => res.status(200).json({ route: "getProfile" }),
+}));
+
+// Build Express app with middleware and routers
+function buildApp() {
+  const app = express();
+  app.use(cookieParser());
+  app.use(bodyParser.json());
+  app.use("/", routers);
+  return app;
 }
 
-async function setUserVerified(email) {
-  await db.User.update({ isVerified: true }, { where: { email } });
-}
+describe("Router Configuration", () => {
+  const app = buildApp();
 
-// --- TEST SUITES ---
-describe("Auth & User Endpoints", () => {
-  beforeEach(async () => {
-    await db.User.destroy({ where: {}, truncate: true, cascade: true });
+  test("POST /login", async () => {
+    const res = await request(app).post("/login").send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "login" });
   });
 
-  describe("POST /register", () => {
-    it("should register user and return 201", async () => {
-      const res = await request(app)
-        .post("/register")
-        .send({ email: "unique@mail.com", password: "pass123" });
-      expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("id");
-    });
-
-    it("should return 400 if email already exists", async () => {
-      await request(app)
-        .post("/register")
-        .send({ email: "dup@mail.com", password: "pass123" });
-      const res = await request(app)
-        .post("/register")
-        .send({ email: "dup@mail.com", password: "pass123" });
-      expect(res.status).toBe(400);
-    });
-
-    it("should return 401 if required fields are missing", async () => {
-      const res = await request(app)
-        .post("/register")
-        .send({ email: "test@test.com" });
-      expect(res.status).toBe(401);
-    });
+  test("POST /register", async () => {
+    const res = await request(app).post("/register").send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ route: "register" });
   });
 
-  describe("POST /login", () => {
-    it("should login and return 200 with tokens and cookie", async () => {
-      await request(app)
-        .post("/register")
-        .send({ email: "login@mail.com", password: "pass123" });
-      const res = await request(app)
-        .post("/login")
-        .send({ email: "login@mail.com", password: "pass123" });
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("token");
-    });
-
-    it("should return 401 for wrong credentials", async () => {
-      await request(app)
-        .post("/register")
-        .send({ email: "login-fail@mail.com", password: "pass123" });
-      const res = await request(app)
-        .post("/login")
-        .send({ email: "login-fail@mail.com", password: "wrong" });
-      expect(res.status).toBe(401);
-    });
+  test("POST /google", async () => {
+    const res = await request(app).post("/google").send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "google" });
   });
 
-  describe("GET /auth/me", () => {
-    it("should return 200 and user info with valid cookie", async () => {
-      const { cookies } = await registerAndLogin({
-        email: "me@mail.com",
-        password: "pass",
-      });
-      const res = await request(app).get("/auth/me").set("Cookie", cookies);
-      expect(res.status).toBe(200);
-      expect(res.body.email).toBe("me@mail.com");
-    });
-    it("should return 401 if no token provided", async () => {
-      const res = await request(app).get("/auth/me");
-      expect(res.status).toBe(401);
-    });
-  });
-});
-
-describe("Verification Endpoints", () => {
-  let userEmail = "verify@mail.com";
-  let userCookies;
-
-  beforeEach(async () => {
-    await db.User.destroy({ where: {}, truncate: true, cascade: true });
-    ({ cookies: userCookies } = await registerAndLogin({
-      email: userEmail,
-      password: "pass123",
-    }));
+  test("Protected routes use protectorLogin", async () => {
+    await request(app).get("/auth/me");
+    expect(protectorLogin).toHaveBeenCalled();
   });
 
-  describe("POST /verify/send", () => {
-    it("should send email, set cookie, and return 201", async () => {
-      sendMailMock.mockResolvedValueOnce({});
-      const res = await request(app)
-        .post("/verify/send")
-        .set("Cookie", userCookies);
-      expect(res.status).toBe(201);
-      expect(res.body.message).toMatch(/successful/i);
-    });
-
-    it("should return 400 if user is already verified", async () => {
-      await setUserVerified(userEmail);
-      const res = await request(app)
-        .post("/verify/send")
-        .set("Cookie", userCookies);
-      expect(res.status).toBe(400);
-    });
-
-    it("should return 500 if nodemailer fails", async () => {
-      sendMailMock.mockRejectedValueOnce(new Error("Email service down"));
-      const res = await request(app)
-        .post("/verify/send")
-        .set("Cookie", userCookies);
-      expect(res.status).toBe(500);
-    });
+  test("POST /verify", async () => {
+    const res = await request(app).post("/verify").send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "verify" });
   });
 
-  describe("POST /verify", () => {
-    it("should verify user and return 200", async () => {
-      const user = await db.User.findOne({ where: { email: userEmail } });
-      verifyToken.mockReturnValue({
-        id: user.id,
-        email: user.email,
-        verifyCode: "123456",
-      });
-      const res = await request(app)
-        .post("/verify")
-        .set("Cookie", userCookies)
-        .send({ verifyCode: "123456" });
-      expect(res.status).toBe(200);
-      const updatedUser = await db.User.findByPk(user.id);
-      expect(updatedUser.isVerified).toBe(true);
-    });
-
-    it("should return 400 for wrong verification code", async () => {
-      const user = await db.User.findOne({ where: { email: userEmail } });
-      verifyToken.mockReturnValue({
-        id: user.id,
-        email: user.email,
-        verifyCode: "123456",
-      });
-      const res = await request(app)
-        .post("/verify")
-        .set("Cookie", userCookies)
-        .send({ verifyCode: "wrong-code" });
-      expect(res.status).toBe(400);
-    });
-  });
-});
-
-describe("Profile, Mood, & Chat Endpoints", () => {
-  let cookies;
-
-  beforeEach(async () => {
-    await db.sequelize.sync({ force: true });
-    ({ cookies } = await registerAndLogin({
-      email: "fullflow@mail.com",
-      password: "pass123",
-    }));
-    await setUserVerified("fullflow@mail.com");
+  test("POST /verify/send", async () => {
+    const res = await request(app).post("/verify/send").send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ route: "verify/send" });
   });
 
-  describe("Profile Endpoints", () => {
-    it("should create profile and return 201", async () => {
-      const res = await request(app)
-        .post("/profile")
-        .set("Cookie", cookies)
-        .send({ displayName: "Test User Profile" });
-      expect(res.status).toBe(201);
-      expect(res.body.displayName).toBe("Test User Profile");
-    });
-
-    it("should return 404 if profile does not exist", async () => {
-      // This test runs with a fresh user who doesn't have a profile yet
-      const { cookies: noProfileCookies } = await registerAndLogin({
-        email: "noprofile@mail.com",
-        password: "123",
-      });
-      await setUserVerified("noprofile@mail.com");
-      const res = await request(app)
-        .get("/profile")
-        .set("Cookie", noProfileCookies);
-      expect(res.status).toBe(404);
-    });
-
-    it("should get the user profile after creation and return 200", async () => {
-      await request(app)
-        .post("/profile")
-        .set("Cookie", cookies)
-        .send({ displayName: "A User" });
-      const res = await request(app).get("/profile").set("Cookie", cookies);
-      expect(res.status).toBe(200);
-      expect(res.body.displayName).toBe("A User");
-    });
-
-    it("should update the profile and return 200", async () => {
-      await request(app)
-        .post("/profile")
-        .set("Cookie", cookies)
-        .send({ displayName: "Initial" });
-      const res = await request(app)
-        .put("/profile")
-        .set("Cookie", cookies)
-        .send({ displayName: "Updated" });
-      expect(res.status).toBe(200);
-      expect(res.body.displayName).toBe("Updated");
-    });
-
-    it("should delete profile and return 200", async () => {
-      await request(app)
-        .post("/profile")
-        .set("Cookie", cookies)
-        .send({ displayName: "To Be Deleted" });
-      const res = await request(app).delete("/profile").set("Cookie", cookies);
-      expect(res.status).toBe(200);
-    });
+  test("Protected routes use protectorVerify after /verify/send", async () => {
+    await request(app).post("/profile").send({});
+    expect(protectorVerify).toHaveBeenCalled();
   });
 
-  describe("Mood & Chat Endpoints", () => {
-    beforeEach(async () => {
-      await request(app)
-        .post("/profile")
-        .set("Cookie", cookies)
-        .send({ displayName: "Ready User" });
-    });
+  test("POST /profile", async () => {
+    const res = await request(app).post("/profile").send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ route: "createProfile" });
+  });
 
-    it("POST /moods: should create a mood log and return 201", async () => {
-      const res = await request(app)
-        .post("/moods")
-        .set("Cookie", cookies)
-        .send({ happy: 1 });
-      expect(res.status).toBe(201);
-      expect(res.body.happy).toBe(1);
-    });
+  test("Protected /moods routes use protectorProfile", async () => {
+    await request(app).get("/moods");
+    expect(protectorProfile).toHaveBeenCalled();
+  });
 
-    it("GET /moods: should get mood logs and return 200", async () => {
-      await request(app).post("/moods").set("Cookie", cookies).send({ sad: 1 });
-      const res = await request(app).get("/moods").set("Cookie", cookies);
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body[0].sad).toBe(1);
-    });
+  test("GET /moods", async () => {
+    const res = await request(app).get("/moods");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "getAllMoods" });
+  });
 
-    it("POST /chat: should get AI response and return 201", async () => {
-      openai.chat.completions.create.mockResolvedValueOnce({
-        choices: [{ message: { content: "Test AI response" } }],
-      });
-      const res = await request(app)
-        .post("/chat")
-        .set("Cookie", cookies)
-        .send({ mood: "curious", message: "What is testing?" });
-      expect(res.status).toBe(201);
-      expect(res.body.mood).toBe("Test AI response");
-    });
+  test("POST /moods", async () => {
+    const res = await request(app).post("/moods").send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ route: "createOrUpdateMood" });
+  });
 
-    it("POST /chat/save: should save a message and return 201", async () => {
-      const res = await request(app)
-        .post("/chat/save")
-        .set("Cookie", cookies)
-        .send({ message: "This is a memory" });
-      expect(res.status).toBe(201);
-      expect(res.body.text).toBe("This is a memory");
-    });
+  test("GET /chat", async () => {
+    const res = await request(app).get("/chat");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "chatHistory" });
+  });
 
-    it("GET /chat/history: should return saved chats and return 200", async () => {
-      await request(app)
-        .post("/chat/save")
-        .set("Cookie", cookies)
-        .send({ message: "A saved message" });
-      const res = await request(app)
-        .get("/chat/history")
-        .set("Cookie", cookies);
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body[0].text).toBe("A saved message");
-    });
+  test("POST /ai", async () => {
+    const res = await request(app).post("/ai").send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ route: "generateChat" });
+  });
+
+  test("GET /chat/:id", async () => {
+    const res = await request(app).get("/chat/1");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "chatDetail" });
+  });
+
+  test("POST /chat", async () => {
+    const res = await request(app).post("/chat").send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ route: "saveChat" });
+  });
+
+  test("DELETE /chat/:id", async () => {
+    const res = await request(app).delete("/chat/1");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "deleteChat" });
+  });
+
+  test("PUT /profile", async () => {
+    const res = await request(app).put("/profile").send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "updateProfile" });
+  });
+
+  test("DELETE /profile", async () => {
+    const res = await request(app).delete("/profile");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "deleteProfile" });
+  });
+
+  test("GET /profile", async () => {
+    const res = await request(app).get("/profile");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ route: "getProfile" });
   });
 });

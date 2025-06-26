@@ -1,10 +1,8 @@
 const { verifyToken } = require("../helpers/jwt");
 const { User, Profile } = require("../models");
 
-// <-- PERBAIKAN: Fungsi harus 'async' untuk menggunakan 'await'
 const protectorLogin = async (req, res, next) => {
   try {
-    // Membaca cookie dengan nama yang benar ("accessToken")
     const token =
       req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
 
@@ -15,7 +13,6 @@ const protectorLogin = async (req, res, next) => {
     }
     const decoded = await verifyToken(token);
 
-    // <-- PERBAIKAN: Wajib gunakan 'await' karena findOne adalah operasi database
     const user = await User.findOne({
       where: {
         id: decoded.id,
@@ -26,14 +23,12 @@ const protectorLogin = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Menyimpan data user yang relevan ke req.user
     req.user = {
       id: user.id,
       email: user.email,
     };
     next();
   } catch (error) {
-    // Menangani token yang tidak valid atau error lainnya
     if (
       error.name === "JsonWebTokenError" ||
       error.name === "TokenExpiredError"

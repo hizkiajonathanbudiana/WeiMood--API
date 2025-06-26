@@ -56,6 +56,7 @@ class userController {
         httpOnly: true,
         secure: true,
         sameSite: "None",
+        path: "/",
         maxAge: 5 * 60 * 60 * 1000,
       });
 
@@ -105,6 +106,7 @@ class userController {
         httpOnly: true,
         secure: true,
         sameSite: "None",
+        path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -148,7 +150,8 @@ class userController {
       res.cookie("accessToken", jwtToken, {
         httpOnly: true,
         secure: true,
-        sameSite: "Strict",
+        sameSite: "None",
+        path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 

@@ -68,17 +68,14 @@ const protectorProfile = async (req, res, next) => {
 const protectorVerify = async (req, res, next) => {
   try {
     const { id } = req.user;
-
-    const user = await User.findOne({
-      where: { id },
-    });
-
-    if (!user.isVerified) {
-      return res.status(403).json({ message: "User not verified" });
-    }
+    const user = await User.findOne({ where: { id } });
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "User not verified" });
     }
 
     next();

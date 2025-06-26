@@ -54,7 +54,7 @@ class userController {
 
       res.cookie("weiVerifyCode", jwtToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "Strict",
         maxAge: 5 * 60 * 60 * 1000,
       });
@@ -103,7 +103,7 @@ class userController {
 
       res.cookie("accessToken", jwtToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "Strict",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
@@ -147,7 +147,7 @@ class userController {
 
       res.cookie("accessToken", jwtToken, {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "Strict",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });

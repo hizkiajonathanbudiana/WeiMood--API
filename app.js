@@ -75,6 +75,9 @@ app.use((error, req, res, next) => {
   } else if (error.message === "MESSAGENOTFOUND") {
     code = 404;
     message = "Please enter any request message";
+  } else if (error.message === "CHATNOTFOUND") {
+    code = 404;
+    message = "Chat not found";
   }
 
   res.status(code).send({ message });

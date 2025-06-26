@@ -28,7 +28,7 @@ router.get("/auth/me", (req, res) => {
 router.post("/logout", (req, res) => {
   res.clearCookie("accessToken", {
     httpOnly: true,
-    secure: false,
+    secure: true,
     sameSite: "Strict",
   });
   res.status(200).json({ message: "Logout successful" });

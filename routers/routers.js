@@ -29,7 +29,7 @@ router.post("/logout", (req, res) => {
   res.clearCookie("accessToken", {
     httpOnly: true,
     secure: true,
-    sameSite: "Strict",
+    sameSite: "None",
   });
   res.status(200).json({ message: "Logout successful" });
 });

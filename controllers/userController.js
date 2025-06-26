@@ -3,6 +3,7 @@ const { hashPassword, comparePasswords } = require("../helpers/bcrypt");
 const { generateToken, verifyToken } = require("../helpers/jwt");
 const { OAuth2Client } = require("google-auth-library");
 const { transporter } = require("../helpers/mailer");
+const isProd = process.env.NODE_ENV === "production";
 class userController {
   static async verifyCodeHandler(req, res, next) {
     try {
@@ -57,6 +58,7 @@ class userController {
         secure: true,
         sameSite: isProd ? "None" : "Lax",
         path: "/",
+        domain: ".hizkiajonathanbudiana.my.id",
         maxAge: 5 * 60 * 60 * 1000,
       });
 
@@ -107,6 +109,7 @@ class userController {
         secure: true,
         sameSite: isProd ? "None" : "Lax",
         path: "/",
+        domain: ".hizkiajonathanbudiana.my.id",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -152,6 +155,7 @@ class userController {
         secure: true,
         sameSite: isProd ? "None" : "Lax",
         path: "/",
+        domain: ".hizkiajonathanbudiana.my.id",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 

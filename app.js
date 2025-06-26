@@ -13,7 +13,9 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    // origin: "http://localhost:5173",
+    origin:
+      "https://weimood-react-git-main-hizkiajonathanbudianas-projects.vercel.app/",
     credentials: true,
   })
 );
